@@ -194,17 +194,18 @@ class ZivpnService : VpnService() {
             Thread {
                 try {
                     val udpTimeout = 60000L
-                    logToApp("Starting Engine with MTU $mtu...")
+                    val safeMtu = 1400 // Safe MTU to avoid fragmentation over Hysteria
+                    logToApp("Starting Engine with MTU $safeMtu...")
                     mobile.Mobile.setLogHandler(tunLogger)
                     mobile.Mobile.start(
                         "socks5://127.0.0.1:7777",
                         "fd://$fd",
-                        "info",
-                        mtu.toLong(),
+                        "debug", // Set to debug for full visibility
+                        safeMtu,
                         udpTimeout,
-                        "4m",    // Increased TCP Send Buffer
-                        "4m",    // Increased TCP Receive Buffer
-                        false    // Auto Tuning Disabled per request
+                        "4m", 
+                        "4m", 
+                        true    // RE-ENABLE Auto Tuning for Browsing stability
                     )
                     logToApp("Tun2Socks Engine Started successfully.")
                 } catch (e: Exception) {
