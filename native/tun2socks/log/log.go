@@ -46,9 +46,13 @@ func SetLogger(logger *Logger) {
 func logf(lvl Level, template string, args ...any) {
 	_globalMu.RLock()
 	s := _globalS
+	l := _globalL
 	_globalMu.RUnlock()
-	s.Logf(lvl, template, args...)
-	emit(lvl, template, args...)
+
+	if l.Core().Enabled(lvl) {
+		s.Logf(lvl, template, args...)
+		emit(lvl, template, args...)
+	}
 }
 
 func Debugf(template string, args ...any) {

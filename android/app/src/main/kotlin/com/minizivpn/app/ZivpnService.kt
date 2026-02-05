@@ -211,11 +211,20 @@ class ZivpnService : VpnService() {
         val ports = (0 until coreCount).map { 20080 + it }
         val tunnelTargets = mutableListOf<String>()
 
+        // Map log level for Hysteria
+        val hyLogLevel = when(logLevel) {
+            "silent" -> "disable"
+            "error" -> "error"
+            "debug" -> "debug"
+            else -> "info"
+        }
+
         for (port in ports) {
             val hyConfig = JSONObject()
             hyConfig.put("server", "$ip:$range")
             hyConfig.put("obfs", obfs)
             hyConfig.put("auth", pass)
+            hyConfig.put("loglevel", hyLogLevel)
             
             val socks5Json = JSONObject()
             socks5Json.put("listen", "127.0.0.1:$port")

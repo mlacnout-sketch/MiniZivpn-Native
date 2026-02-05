@@ -144,7 +144,7 @@ class _HomePageState extends State<HomePage> {
           "obfs": prefs.getString('obfs') ?? "hu``hqb`c",
           "recv_window_multiplier": 4.0,
           "udp_mode": "udp",
-          "mtu": int.tryParse(prefs.getString('mtu') ?? "1500") ?? 1500,
+          "mtu": int.tryParse(prefs.getString('mtu') ?? "1200") ?? 1200,
           "auto_tuning": prefs.getBool('auto_tuning') ?? true,
           "buffer_size": prefs.getString('buffer_size') ?? "4m",
           "log_level": prefs.getString('log_level') ?? "info",
@@ -498,7 +498,7 @@ class _SettingsTabState extends State<SettingsTab> {
       _ipCtrl.text = prefs.getString('ip') ?? "";
       _authCtrl.text = prefs.getString('auth') ?? "";
       _obfsCtrl.text = prefs.getString('obfs') ?? "hu``hqb`c";
-      _mtuCtrl.text = prefs.getString('mtu') ?? "1500";
+      _mtuCtrl.text = prefs.getString('mtu') ?? "1200";
       _autoTuning = prefs.getBool('auto_tuning') ?? true;
       _bufferSize = prefs.getString('buffer_size') ?? "4m";
       _logLevel = prefs.getString('log_level') ?? "info";
@@ -529,8 +529,6 @@ class _SettingsTabState extends State<SettingsTab> {
         _buildInput(_ipCtrl, "Server IP / Domain", Icons.dns),
         const SizedBox(height: 15),
         _buildInput(_authCtrl, "Password / Auth", Icons.password),
-        const SizedBox(height: 15),
-        _buildInput(_obfsCtrl, "Obfuscation Salt", Icons.security),
         const SizedBox(height: 30),
         
         const Text("Core Settings (Advanced)", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),

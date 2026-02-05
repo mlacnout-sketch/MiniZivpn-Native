@@ -22,7 +22,9 @@ func (e *emitter) setLogger(logger *SugaredLogger) {
 }
 
 func (e *emitter) logf(level glog.Level, format string, args ...any) {
-	e.logger.Logf(1-Level(level), "[STACK] "+format, args...)
+	zapLevel := 1 - Level(level)
+	e.logger.Logf(zapLevel, "[STACK] "+format, args...)
+	emit(zapLevel, "[STACK] "+format, args...)
 }
 
 func (e *emitter) Emit(_ int, level glog.Level, _ time.Time, format string, args ...any) {
