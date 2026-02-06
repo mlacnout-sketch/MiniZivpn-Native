@@ -129,13 +129,14 @@ class MainActivity: FlutterActivity() {
     private fun startStatsTimer() {
         stopStatsTimer()
         statsTimer = Timer()
-        var lastRx = TrafficStats.getTotalRxBytes()
-        var lastTx = TrafficStats.getTotalTxBytes()
+        val uid = android.os.Process.myUid()
+        var lastRx = TrafficStats.getUidRxBytes(uid)
+        var lastTx = TrafficStats.getUidTxBytes(uid)
         
         statsTimer?.schedule(object : TimerTask() {
             override fun run() {
-                val currentRx = TrafficStats.getTotalRxBytes()
-                val currentTx = TrafficStats.getTotalTxBytes()
+                val currentRx = TrafficStats.getUidRxBytes(uid)
+                val currentTx = TrafficStats.getUidTxBytes(uid)
                 
                 val rxSpeed = currentRx - lastRx
                 val txSpeed = currentTx - lastTx
