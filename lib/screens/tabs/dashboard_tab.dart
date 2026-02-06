@@ -110,12 +110,19 @@ class _DashboardTabState extends State<DashboardTab> with SingleTickerProviderSt
       // 2. Fallback to ICMP (Only if HTTP totally fails)
       try {
         final cleanTarget = target.replaceAll(RegExp(r'^https?://'), '').split('/')[0];
-        // Note: This often fails on Android 10+ due to permissions
         final proc = await Process.run('ping', ['-c', '1', '-W', '1', cleanTarget]);
         if (proc.exitCode == 0) {
            final match = RegExp(r"time=([0-9\.]+) ms").firstMatch(proc.stdout.toString());
            if (match != null) return "${match.group(1)} ms";
         }
+      } catch (_) {}
+
+      // 3. Fallback to TCP Handshake (8.8.8.8:53) - The most reliable connectivity check
+      try {
+        final socket = await Socket.connect('8.8.8.8', 53, timeout: const Duration(seconds: 2));
+        socket.destroy();
+        stopwatch.stop();
+        return "TCP OK"; // Use "TCP OK" or elapsed time
       } catch (_) {}
       
       // Return specific error for debugging
@@ -128,9 +135,10 @@ class _DashboardTabState extends State<DashboardTab> with SingleTickerProviderSt
   }
 
   Color _getPingColor(String result) {
-    if (result.contains("Error") || result.contains("Timeout") || result.contains("HTTP")) {
+    if (result.contains("Error") || result.contains("Timeout") || result.contains("HTTP") || result.contains("Net")) {
       return Colors.redAccent;
     }
+    if (result == "TCP OK") return Colors.yellowAccent; // TCP OK means connected but maybe slow/no http
     try {
       final msString = result.split(' ')[0];
       final ms = double.tryParse(msString);
