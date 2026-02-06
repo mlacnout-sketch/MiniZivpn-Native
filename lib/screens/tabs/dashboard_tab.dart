@@ -77,51 +77,44 @@ class _DashboardTabState extends State<DashboardTab> with SingleTickerProviderSt
 
   Future<String> _performPingLogic() async {
     final prefs = await SharedPreferences.getInstance();
-    String target = (prefs.getString('ping_target') ?? "http://www.gstatic.com/generate_204").trim();
+    String target = (prefs.getString('ping_target') ?? "http://clients3.google.com/generate_204").trim();
     
-    if (target.isEmpty) target = "http://www.gstatic.com/generate_204";
+    // JS Logic: Ensure URL is valid
+    if (target.isEmpty) target = "http://clients3.google.com/generate_204";
+    if (!target.startsWith("http")) {
+      target = "http://$target";
+    }
 
     final stopwatch = Stopwatch()..start();
+    final client = HttpClient();
+    
+    // JS Logic equivalent: Timeout is critical
+    client.connectionTimeout = const Duration(milliseconds: 2000); // 2000ms timeout
+    client.badCertificateCallback = (cert, host, port) => true; // Robustness
 
-    // SIMPLE LOGIC: HTTP vs ICMP based on prefix
-    if (target.startsWith("http")) {
-      // 1. HTTP Mode
-      final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 5);
-      client.badCertificateCallback = (cert, host, port) => true; // Allow bad SSL for vpn check
+    try {
+      final request = await client.getUrl(Uri.parse(target));
+      
+      // Close request to send it
+      final response = await request.close();
+      
+      // Stop timer immediately after headers received
+      stopwatch.stop();
+      
+      // Critical: Drain response to prevent socket leaks (Dart specific)
+      await response.drain(); 
 
-      try {
-        final request = await client.getUrl(Uri.parse(target));
-        request.headers.add("User-Agent", "ZIVPN");
-        final response = await request.close();
-        stopwatch.stop();
-        
-        if (response.statusCode >= 200 && response.statusCode < 400) {
-          return "${stopwatch.elapsedMilliseconds} ms";
-        } else {
-          return "HTTP ${response.statusCode}";
-        }
-      } catch (e) {
-        return "Net Error";
-      } finally {
-        client.close();
+      // JS Logic: status === 200 || status === 204
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return "${stopwatch.elapsedMilliseconds} ms";
+      } else {
+        return "HTTP ${response.statusCode}";
       }
-    } else {
-      // 2. ICMP Mode (System Ping)
-      try {
-        final proc = await Process.run('ping', ['-c', '1', '-W', '2', target]);
-        stopwatch.stop();
-        
-        if (proc.exitCode == 0) {
-           final match = RegExp(r"time=([0-9\.]+) ms").firstMatch(proc.stdout.toString());
-           if (match != null) return "${match.group(1)} ms";
-           return "Reply";
-        } else {
-           return "Timeout";
-        }
-      } catch (e) {
-        return "Error";
-      }
+    } catch (e) {
+      // JS Logic: catch (error) { return false } -> We return specific error
+      return "Timeout";
+    } finally {
+      client.close();
     }
   }
 
