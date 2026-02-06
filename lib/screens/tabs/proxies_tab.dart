@@ -5,6 +5,7 @@ class ProxiesTab extends StatefulWidget {
   final int activePingIndex;
   final Function(int) onActivate;
   final Function(Map<String, dynamic>) onAdd;
+  final Function(int, Map<String, dynamic>) onEdit;
   final Function(int) onDelete;
 
   const ProxiesTab({
@@ -13,6 +14,7 @@ class ProxiesTab extends StatefulWidget {
     required this.activePingIndex,
     required this.onActivate,
     required this.onAdd,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -21,22 +23,21 @@ class ProxiesTab extends StatefulWidget {
 }
 
 class _ProxiesTabState extends State<ProxiesTab> {
-  String _formatTotalBytes(int bytes) {
-    if (bytes < 1024) return "$bytes B";
-    if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
-    return "${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB";
-  }
+  // ... (existing _formatTotalBytes)
 
-  void _showAddDialog(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    final ipCtrl = TextEditingController();
-    final authCtrl = TextEditingController();
+  void _showAccountDialog(BuildContext context, {int? index}) {
+    final isEditing = index != null;
+    final Map<String, dynamic>? existingData = isEditing ? widget.accounts[index] : null;
+
+    final nameCtrl = TextEditingController(text: existingData?['name'] ?? "");
+    final ipCtrl = TextEditingController(text: existingData?['ip'] ?? "");
+    final authCtrl = TextEditingController(text: existingData?['auth'] ?? "");
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF272736),
-        title: const Text("Add Account"),
+        title: Text(isEditing ? "Edit Account" : "Add Account"),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -78,16 +79,19 @@ class _ProxiesTabState extends State<ProxiesTab> {
                 return;
               }
 
-              // Validation for colon removed as per request.
-              // Users can input IP/Domain without port.
-
-              widget.onAdd({
+              final newData = {
                 "name": name,
                 "ip": ip,
                 "auth": pass,
-                "obfs": "hu``hqb`c",
-                "usage": 0,
-              });
+                "obfs": existingData?['obfs'] ?? "hu``hqb`c",
+                "usage": existingData?['usage'] ?? 0,
+              };
+
+              if (isEditing) {
+                widget.onEdit(index, newData);
+              } else {
+                widget.onAdd(newData);
+              }
               Navigator.pop(ctx);
             },
             child: const Text("Save"),
@@ -102,7 +106,7 @@ class _ProxiesTabState extends State<ProxiesTab> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddDialog(context),
+        onPressed: () => _showAccountDialog(context),
         backgroundColor: const Color(0xFF6C63FF),
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -162,9 +166,16 @@ class _ProxiesTabState extends State<ProxiesTab> {
                     ),
                     trailing: PopupMenuButton(
                       itemBuilder: (ctx) => [
+                        const PopupMenuItem(value: 'edit', child: Text("Edit")),
                         const PopupMenuItem(value: 'del', child: Text("Delete")),
                       ],
-                      onSelected: (v) => widget.onDelete(index),
+                      onSelected: (val) {
+                        if (val == 'edit') {
+                          _showAccountDialog(context, index: index);
+                        } else if (val == 'del') {
+                          widget.onDelete(index);
+                        }
+                      },
                     ),
                     onTap: () => widget.onActivate(index),
                   ),

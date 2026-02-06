@@ -244,6 +244,11 @@ class _HomePageState extends State<HomePage> {
                 setState(() => _accounts.add(acc));
                 _saveAccounts();
               },
+              onEdit: (index, newAcc) {
+                setState(() => _accounts[index] = newAcc);
+                _saveAccounts();
+                // If editing active account, reload connection details (if implementing live reload)
+              },
               onDelete: (index) {
                 setState(() => _accounts.removeAt(index));
                 _saveAccounts();
