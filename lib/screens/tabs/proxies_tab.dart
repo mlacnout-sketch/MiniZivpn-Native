@@ -78,19 +78,71 @@ class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
   }
 
   void _showPingDialog(BuildContext context, int index) {
-    final targetCtrl = TextEditingController(text: "google.com");
+    final targetCtrl = TextEditingController(text: "connectivitycheck.gstatic.com");
     
+    final List<String> suggestions = [
+      "connectivitycheck.gstatic.com",
+      "www.gstatic.com",
+      "google.com",
+      "1.1.1.1",
+      "8.8.8.8",
+      "facebook.com"
+    ];
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF272736),
         title: const Text("Ping Destination"),
-        content: TextField(
-          controller: targetCtrl,
-          decoration: const InputDecoration(
-            labelText: "Target (IP/Domain)",
-            prefixIcon: Icon(Icons.network_check),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Autocomplete<String>(
+              initialValue: TextEditingValue(text: targetCtrl.text),
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text == '') {
+                  return const Iterable<String>.empty();
+                }
+                return suggestions.where((String option) {
+                  return option.contains(textEditingValue.text.toLowerCase());
+                });
+              },
+              onSelected: (String selection) {
+                targetCtrl.text = selection;
+              },
+              fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController, FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
+                // Sync controllers
+                fieldTextEditingController.addListener(() {
+                  targetCtrl.text = fieldTextEditingController.text;
+                });
+                if (fieldTextEditingController.text.isEmpty && targetCtrl.text.isNotEmpty) {
+                   fieldTextEditingController.text = targetCtrl.text;
+                }
+                
+                return TextField(
+                  controller: fieldTextEditingController,
+                  focusNode: fieldFocusNode,
+                  decoration: const InputDecoration(
+                    labelText: "Target (IP/Domain)",
+                    prefixIcon: Icon(Icons.network_check),
+                    hintText: "e.g. google.com",
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8.0,
+              children: suggestions.take(3).map((s) => ActionChip(
+                label: Text(s),
+                backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _doPing(index, s);
+                },
+              )).toList(),
+            )
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
@@ -98,7 +150,18 @@ class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF), foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
-              _doPing(index, targetCtrl.text);
+              // Clean URL to hostname if needed
+              String target = targetCtrl.text.trim();
+              if (target.startsWith("http")) {
+                try {
+                  target = Uri.parse(target).host;
+                } catch (e) { /* ignore */ }
+              }
+              // Remove path if present (e.g. domain.com/path -> domain.com)
+              if (target.contains("/")) {
+                target = target.split("/")[0];
+              }
+              _doPing(index, target);
             },
             child: const Text("Ping"),
           ),
