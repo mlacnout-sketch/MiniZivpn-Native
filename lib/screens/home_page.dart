@@ -18,7 +18,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  
+
   // Core Channels
   static const platform = MethodChannel('com.minizivpn.app/core');
   static const logChannel = EventChannel('com.minizivpn.app/logs');
@@ -28,26 +28,26 @@ class _HomePageState extends State<HomePage> {
   bool _isRunning = false;
   final List<String> _logs = [];
   final ScrollController _logScrollCtrl = ScrollController();
-  
+
   // Multi-Account State
   List<Map<String, dynamic>> _accounts = [];
   int _activeAccountIndex = -1;
-  
+
   // Timer State
   Timer? _timer;
   DateTime? _startTime;
   String _durationString = "00:00:00";
-  
+
   // Stats
   String _dlSpeed = "0 KB/s";
   String _ulSpeed = "0 KB/s";
   int _sessionRx = 0;
   int _sessionTx = 0;
-  
+
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadInitialData();
     _initLogListener();
     _initStatsListener();
   }
@@ -58,32 +58,29 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadInitialData() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Load Accounts
     final String? jsonStr = prefs.getString('saved_accounts');
     if (jsonStr != null) {
       _accounts = List<Map<String, dynamic>>.from(jsonDecode(jsonStr));
     }
-    
+
     // Load VPN Status
     final isRunning = prefs.getBool('vpn_running') ?? false;
     final startMillis = prefs.getInt('vpn_start_time');
     final currentIp = prefs.getString('ip') ?? "";
-    
-    // Find active account
+
     if (currentIp.isNotEmpty) {
       _activeAccountIndex = _accounts.indexWhere((acc) => acc['ip'] == currentIp);
     }
-    
+
     setState(() {
       _isRunning = isRunning;
       if (isRunning && startMillis != null) {
         _startTime = DateTime.fromMillisecondsSinceEpoch(startMillis);
         _startTimer();
-      } else {
-        _durationString = "00:00:00";
       }
     });
   }
@@ -99,22 +96,10 @@ class _HomePageState extends State<HomePage> {
       if (_startTime == null) return;
       final diff = DateTime.now().difference(_startTime!);
       String twoDigits(int n) => n.toString().padLeft(2, "0");
-      final hours = twoDigits(diff.inHours);
-      final minutes = twoDigits(diff.inMinutes.remainder(60));
-      final seconds = twoDigits(diff.inSeconds.remainder(60));
       setState(() {
-        _durationString = "$hours:$minutes:$seconds";
+        _durationString =
+            "${twoDigits(diff.inHours)}:${twoDigits(diff.inMinutes.remainder(60))}:${twoDigits(diff.inSeconds.remainder(60))}";
       });
-    });
-  }
-
-  void _stopTimer() {
-    _timer?.cancel();
-    setState(() {
-      _durationString = "00:00:00";
-      _startTime = null;
-      _sessionRx = 0;
-      _sessionTx = 0;
     });
   }
 
@@ -131,7 +116,7 @@ class _HomePageState extends State<HomePage> {
       }
     });
   }
-  
+
   void _initStatsListener() {
     statsChannel.receiveBroadcastStream().listen((event) {
       if (event is String && mounted) {
@@ -139,24 +124,23 @@ class _HomePageState extends State<HomePage> {
         if (parts.length == 2) {
           final rx = int.tryParse(parts[0]) ?? 0;
           final tx = int.tryParse(parts[1]) ?? 0;
-          
+
           setState(() {
             _dlSpeed = _formatBytes(rx);
             _ulSpeed = _formatBytes(tx);
             _sessionRx += rx;
             _sessionTx += tx;
-            
-            // Accumulate Quota for Active Account
-            if (_activeAccountIndex != -1 && _activeAccountIndex < _accounts.length) {
-              final acc = _accounts[_activeAccountIndex];
-              acc['usage'] = (acc['usage'] ?? 0) + rx + tx;
+
+            if (_activeAccountIndex != -1) {
+              _accounts[_activeAccountIndex]['usage'] =
+                  (_accounts[_activeAccountIndex]['usage'] ?? 0) + rx + tx;
             }
           });
         }
       }
     });
   }
-  
+
   String _formatBytes(int bytes) {
     if (bytes < 1024) return "$bytes B/s";
     if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB/s";
@@ -166,24 +150,27 @@ class _HomePageState extends State<HomePage> {
   Future<void> _toggleVpn() async {
     HapticFeedback.mediumImpact();
     final prefs = await SharedPreferences.getInstance();
-    
+
     if (_isRunning) {
       try {
         await platform.invokeMethod('stopCore');
-        _stopTimer();
+        _timer?.cancel();
+        setState(() {
+          _isRunning = false;
+          _durationString = "00:00:00";
+          _startTime = null;
+          _sessionRx = 0;
+          _sessionTx = 0;
+        });
         await prefs.remove('vpn_start_time');
-        await _saveAccounts(); // Save quota
-        setState(() => _isRunning = false);
+        await _saveAccounts();
       } catch (e) {
         _logs.add("Error stopping: $e");
       }
     } else {
       final ip = prefs.getString('ip') ?? "";
       if (ip.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please configure Server IP in Settings")),
-        );
-        setState(() => _selectedIndex = 3);
+        setState(() => _selectedIndex = 3); // Go to settings
         return;
       }
 
@@ -202,13 +189,12 @@ class _HomePageState extends State<HomePage> {
           "core_count": (prefs.getInt('core_count') ?? 4)
         });
         await platform.invokeMethod('startVpn');
-        
-        // Start Timer
+
         final now = DateTime.now();
         await prefs.setInt('vpn_start_time', now.millisecondsSinceEpoch);
         _startTime = now;
         _startTimer();
-        
+
         setState(() => _isRunning = true);
       } catch (e) {
         setState(() {
@@ -222,100 +208,84 @@ class _HomePageState extends State<HomePage> {
   Future<void> _handleAccountSwitch(int index) async {
     final account = _accounts[index];
     final prefs = await SharedPreferences.getInstance();
-    
+
     await prefs.setString('ip', account['ip']);
     await prefs.setString('auth', account['auth']);
     await prefs.setString('obfs', account['obfs']);
-    
+
     setState(() {
       _activeAccountIndex = index;
-      _sessionRx = 0; // Reset session stats
+      _sessionRx = 0;
       _sessionTx = 0;
     });
-    
-    await _saveAccounts(); // Save any pending stats
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Activated: ${account['name']}"),
-          backgroundColor: const Color(0xFF6C63FF),
-          duration: const Duration(milliseconds: 800),
-        ),
-      );
-    }
 
     if (_isRunning) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Switching account..."),
-          duration: Duration(seconds: 1),
-          backgroundColor: Color(0xFF6C63FF),
-        )
-      );
-      
       await _toggleVpn(); // Stop
       await Future.delayed(const Duration(milliseconds: 500));
       await _toggleVpn(); // Start
     }
   }
-  
-  void _addAccount(Map<String, dynamic> acc) {
-    setState(() {
-      _accounts.add(acc);
-    });
-    _saveAccounts();
-  }
-  
-  void _deleteAccount(int index) {
-    setState(() {
-      _accounts.removeAt(index);
-      if (_activeAccountIndex == index) _activeAccountIndex = -1;
-      else if (_activeAccountIndex > index) _activeAccountIndex--;
-    });
-    _saveAccounts();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      DashboardTab(
-        isRunning: _isRunning, 
-        onToggle: _toggleVpn, 
-        dl: _dlSpeed, 
-        ul: _ulSpeed,
-        duration: _durationString,
-        sessionRx: _sessionRx,
-        sessionTx: _sessionTx,
-      ),
-      ProxiesTab(
-        accounts: _accounts, 
-        activePingIndex: _activeAccountIndex,
-        onActivate: _handleAccountSwitch,
-        onAdd: _addAccount,
-        onDelete: _deleteAccount,
-      ),
-      LogsTab(logs: _logs, scrollController: _logScrollCtrl),
-      const SettingsTab(),
-    ];
-
     return Scaffold(
       body: SafeArea(
         child: IndexedStack(
           index: _selectedIndex,
-          children: pages,
+          children: [
+            DashboardTab(
+              isRunning: _isRunning,
+              onToggle: _toggleVpn,
+              dl: _dlSpeed,
+              ul: _ulSpeed,
+              duration: _durationString,
+              sessionRx: _sessionRx,
+              sessionTx: _sessionTx,
+            ),
+            ProxiesTab(
+              accounts: _accounts,
+              activePingIndex: _activeAccountIndex,
+              onActivate: _handleAccountSwitch,
+              onAdd: (acc) {
+                setState(() => _accounts.add(acc));
+                _saveAccounts();
+              },
+              onDelete: (index) {
+                setState(() => _accounts.removeAt(index));
+                _saveAccounts();
+              },
+            ),
+            LogsTab(logs: _logs, scrollController: _logScrollCtrl),
+            const SettingsTab(),
+          ],
         ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (i) => setState(() => _selectedIndex = i),
         backgroundColor: const Color(0xFF1E1E2E),
-        indicatorColor: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+        indicatorColor: const Color(0xFF6C63FF).withOpacity(0.2),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.public_outlined), selectedIcon: Icon(Icons.public), label: 'Proxies'),
-          NavigationDestination(icon: Icon(Icons.terminal_outlined), selectedIcon: Icon(Icons.terminal), label: 'Logs'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.public_outlined),
+            selectedIcon: Icon(Icons.public),
+            label: 'Proxies',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.terminal_outlined),
+            selectedIcon: Icon(Icons.terminal),
+            label: 'Logs',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
         ],
       ),
     );

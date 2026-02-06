@@ -10,7 +10,7 @@ class SettingsTab extends StatefulWidget {
 
 class _SettingsTabState extends State<SettingsTab> {
   final _mtuCtrl = TextEditingController();
-  
+
   bool _autoTuning = true;
   String _bufferSize = "4m";
   String _logLevel = "info";
@@ -19,10 +19,10 @@ class _SettingsTabState extends State<SettingsTab> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadSettings();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _mtuCtrl.text = prefs.getString('mtu') ?? "1200";
@@ -33,14 +33,19 @@ class _SettingsTabState extends State<SettingsTab> {
     });
   }
 
-  Future<void> _save() async {
+  Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('mtu', _mtuCtrl.text);
     await prefs.setBool('auto_tuning', _autoTuning);
     await prefs.setString('buffer_size', _bufferSize);
     await prefs.setString('log_level', _logLevel);
     await prefs.setInt('core_count', _coreCount.toInt());
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Settings Saved")));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Settings Saved")),
+      );
+    }
   }
 
   @override
@@ -48,37 +53,23 @@ class _SettingsTabState extends State<SettingsTab> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text("Core Settings", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const Text(
+          "Core Settings",
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 20),
-        
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                _buildInput(_mtuCtrl, "MTU (Default: 1500)", Icons.settings_ethernet),
-                const SizedBox(height: 15),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text("Hysteria Cores: ${_coreCount.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    Slider(
-                      value: _coreCount,
-                      min: 1,
-                      max: 8,
-                      divisions: 7,
-                      label: "${_coreCount.toInt()} Cores",
-                      onChanged: (val) => setState(() => _coreCount = val),
-                    ),
-                    const Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text("More cores = Higher speed but more battery usage", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    ),
-                  ],
+                _buildTextInput(
+                  _mtuCtrl,
+                  "MTU (Default: 1500)",
+                  Icons.settings_ethernet,
                 ),
+                const SizedBox(height: 20),
+                _buildSliderSection(),
                 const Divider(),
                 SwitchListTile(
                   title: const Text("TCP Auto Tuning"),
@@ -87,42 +78,27 @@ class _SettingsTabState extends State<SettingsTab> {
                   onChanged: (val) => setState(() => _autoTuning = val),
                 ),
                 const Divider(),
-                ListTile(
-                  title: const Text("TCP Buffer Size"),
-                  subtitle: const Text("Max window size per connection"),
-                  trailing: DropdownButton<String>(
-                    value: _bufferSize,
-                    items: const [
-                      DropdownMenuItem(value: "1m", child: Text("1 MB")),
-                      DropdownMenuItem(value: "2m", child: Text("2 MB")),
-                      DropdownMenuItem(value: "4m", child: Text("4 MB")),
-                      DropdownMenuItem(value: "8m", child: Text("8 MB")),
-                    ],
-                    onChanged: (val) => setState(() => _bufferSize = val!),
-                  ),
+                _buildDropdownTile(
+                  "TCP Buffer Size",
+                  "Max window size per connection",
+                  _bufferSize,
+                  ["1m", "2m", "4m", "8m"],
+                  (val) => setState(() => _bufferSize = val!),
                 ),
-                ListTile(
-                  title: const Text("Log Level"),
-                  subtitle: const Text("Verbosity of logs"),
-                  trailing: DropdownButton<String>(
-                    value: _logLevel,
-                    items: const [
-                      DropdownMenuItem(value: "debug", child: Text("Debug (Verbose)")),
-                      DropdownMenuItem(value: "info", child: Text("Info (Standard)")),
-                      DropdownMenuItem(value: "error", child: Text("Error (Minimal)")),
-                      DropdownMenuItem(value: "silent", child: Text("Silent (None)")),
-                    ],
-                    onChanged: (val) => setState(() => _logLevel = val!),
-                  ),
-                )
+                _buildDropdownTile(
+                  "Log Level",
+                  "Verbosity of logs",
+                  _logLevel,
+                  ["debug", "info", "error", "silent"],
+                  (val) => setState(() => _logLevel = val!),
+                ),
               ],
             ),
           ),
         ),
-
         const SizedBox(height: 30),
         ElevatedButton.icon(
-          onPressed: _save,
+          onPressed: _saveSettings,
           icon: const Icon(Icons.save),
           label: const Text("Save Configuration"),
           style: ElevatedButton.styleFrom(
@@ -135,7 +111,7 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  Widget _buildInput(TextEditingController ctrl, String label, IconData icon) {
+  Widget _buildTextInput(TextEditingController ctrl, String label, IconData icon) {
     return TextField(
       controller: ctrl,
       decoration: InputDecoration(
@@ -144,6 +120,59 @@ class _SettingsTabState extends State<SettingsTab> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
         fillColor: const Color(0xFF272736),
+      ),
+    );
+  }
+
+  Widget _buildSliderSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            "Hysteria Cores: ${_coreCount.toInt()}",
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Slider(
+          value: _coreCount,
+          min: 1,
+          max: 8,
+          divisions: 7,
+          label: "${_coreCount.toInt()} Cores",
+          onChanged: (val) => setState(() => _coreCount = val),
+        ),
+        const Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            "More cores = Higher speed but more battery usage",
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownTile(
+    String title,
+    String subtitle,
+    String value,
+    List<String> items,
+    ValueChanged<String?> onChanged,
+  ) {
+    return ListTile(
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: DropdownButton<String>(
+        value: value,
+        items: items
+            .map((item) => DropdownMenuItem(
+                  value: item,
+                  child: Text(item.toUpperCase()),
+                ))
+            .toList(),
+        onChanged: onChanged,
       ),
     );
   }

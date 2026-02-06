@@ -22,16 +22,30 @@ class ProxiesTab extends StatefulWidget {
 }
 
 class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
-  // Ping State
   final Map<int, String> _pingResults = {};
   final Map<int, bool> _isPinging = {};
   final Map<int, AnimationController> _animControllers = {};
 
+  final List<String> suggestions = [
+    "http://google.com/generate_204",
+    "http://cp.cloudflare.com/generate_204",
+    "https://www.gstatic.com/generate_204",
+    "connectivitycheck.gstatic.com",
+    "1.1.1.1"
+  ];
+
+  @override
+  void dispose() {
+    for (var controller in _animControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
   String _formatTotalBytes(int bytes) {
     if (bytes < 1024) return "$bytes B";
     if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
-    if (bytes < 1024 * 1024 * 1024) return "${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB";
-    return "${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB";
+    return "${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB";
   }
 
   void _showAddDialog(BuildContext context) {
@@ -48,16 +62,31 @@ class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Name (e.g. SG-1)")),
-              TextField(controller: ipCtrl, decoration: const InputDecoration(labelText: "IP/Domain:Port")),
-              TextField(controller: authCtrl, decoration: const InputDecoration(labelText: "Password")),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: "Account Name"),
+              ),
+              TextField(
+                controller: ipCtrl,
+                decoration: const InputDecoration(labelText: "IP/Domain:Port"),
+              ),
+              TextField(
+                controller: authCtrl,
+                decoration: const InputDecoration(labelText: "Password"),
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6C63FF),
+              foregroundColor: Colors.white,
+            ),
             onPressed: () {
               if (nameCtrl.text.isNotEmpty && ipCtrl.text.isNotEmpty) {
                 widget.onAdd({
@@ -78,18 +107,7 @@ class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
   }
 
   void _showPingDialog(BuildContext context, int index) {
-    final targetCtrl = TextEditingController(text: "connectivitycheck.gstatic.com");
-    
-    final List<String> suggestions = [
-      "http://google.com/generate_204",
-      "http://cp.cloudflare.com/generate_204",
-      "http://connect.rom.miui.com/generate_204",
-      "https://www.gstatic.com/generate_204",
-      "connectivitycheck.gstatic.com",
-      "1.1.1.1",
-      "8.8.8.8"
-  ];
-
+    final targetCtrl = TextEditingController(text: suggestions[0]);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -100,43 +118,25 @@ class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
           children: [
             Autocomplete<String>(
               initialValue: TextEditingValue(text: targetCtrl.text),
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text == '') {
-                  return const Iterable<String>.empty();
-                }
-                return suggestions.where((String option) {
-                  return option.contains(textEditingValue.text.toLowerCase());
-                });
-              },
-              onSelected: (String selection) {
-                targetCtrl.text = selection;
-              },
-              fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController, FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
-                // Sync controllers
-                fieldTextEditingController.addListener(() {
-                  targetCtrl.text = fieldTextEditingController.text;
-                });
-                if (fieldTextEditingController.text.isEmpty && targetCtrl.text.isNotEmpty) {
-                   fieldTextEditingController.text = targetCtrl.text;
-                }
-                
+              optionsBuilder: (v) => suggestions.where((s) => s.contains(v.text.toLowerCase())),
+              onSelected: (s) => targetCtrl.text = s,
+              fieldViewBuilder: (ctx, ctrl, node, onSub) {
+                ctrl.addListener(() => targetCtrl.text = ctrl.text);
                 return TextField(
-                  controller: fieldTextEditingController,
-                  focusNode: fieldFocusNode,
+                  controller: ctrl,
+                  focusNode: node,
                   decoration: const InputDecoration(
-                    labelText: "Target (IP/Domain)",
+                    labelText: "Target",
                     prefixIcon: Icon(Icons.network_check),
-                    hintText: "e.g. google.com",
                   ),
                 );
               },
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             Wrap(
-              spacing: 8.0,
+              spacing: 8,
               children: suggestions.take(3).map((s) => ActionChip(
-                label: Text(s),
-                backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                label: Text(s, style: const TextStyle(fontSize: 10)),
                 onPressed: () {
                   Navigator.pop(ctx);
                   _doPing(index, s);
@@ -148,107 +148,69 @@ class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
             onPressed: () {
               Navigator.pop(ctx);
-              // Clean URL to hostname if needed
               String target = targetCtrl.text.trim();
-              if (target.startsWith("http")) {
-                try {
-                  target = Uri.parse(target).host;
-                } catch (e) { /* ignore */ }
-              }
-              // Remove path if present (e.g. domain.com/path -> domain.com)
-              if (target.contains("/")) {
-                target = target.split("/")[0];
-              }
               _doPing(index, target);
             },
             child: const Text("Ping"),
-          ),
+          )
         ],
       ),
     );
   }
 
   Future<void> _doPing(int index, String target) async {
-    // Init Animation
     if (!_animControllers.containsKey(index)) {
       _animControllers[index] = AnimationController(
         duration: const Duration(milliseconds: 1000),
         vsync: this,
       );
     }
+    
     _animControllers[index]!.repeat();
-
+    
     setState(() {
       _isPinging[index] = true;
       _pingResults[index] = "Pinging...";
     });
 
-    final stopwatch = Stopwatch()..start();
+    final sw = Stopwatch()..start();
     String latency = "Timeout";
 
     try {
       if (target.startsWith("http")) {
-        // HTTP Ping (Real Delay)
-        try {
-          final client = HttpClient();
-          client.connectionTimeout = const Duration(seconds: 5);
-          final request = await client.getUrl(Uri.parse(target));
-          final response = await request.close();
-          stopwatch.stop();
-          
-          if (response.statusCode == 204 || response.statusCode == 200) {
-            latency = "${stopwatch.elapsedMilliseconds} ms";
-          } else {
-            latency = "HTTP ${response.statusCode}";
-          }
-        } catch (e) {
-          latency = "Error";
+        final client = HttpClient();
+        client.connectionTimeout = const Duration(seconds: 5);
+        final req = await client.getUrl(Uri.parse(target));
+        final res = await req.close();
+        sw.stop();
+        if (res.statusCode == 204 || res.statusCode == 200) {
+          latency = "${sw.elapsedMilliseconds} ms";
+        } else {
+          latency = "HTTP ${res.statusCode}";
         }
       } else {
-        // ICMP Ping
-        final result = await Process.run('ping', ['-c', '1', '-W', '2', target]);
-        stopwatch.stop();
-        
-        if (result.exitCode == 0) {
-          final RegExp regExp = RegExp(r"time=([0-9\.]+) ms");
-          final match = regExp.firstMatch(result.stdout.toString());
-          if (match != null) {
-            latency = "${match.group(1)} ms";
-          }
+        final res = await Process.run('ping', ['-c', '1', '-W', '2', target]);
+        sw.stop();
+        if (res.exitCode == 0) {
+          final m = RegExp(r"time=([0-9\.]+) ms").firstMatch(res.stdout.toString());
+          if (m != null) latency = "${m.group(1)} ms";
         }
       }
-
-      if (mounted) {
-        setState(() {
-          _pingResults[index] = latency;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _pingResults[index] = "Error";
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPinging[index] = false;
-        });
-        _animControllers[index]!.stop();
-        _animControllers[index]!.reset();
-      }
+    } catch (_) {
+      latency = "Error";
     }
-  }
 
-  @override
-  void dispose() {
-    for (var controller in _animControllers.values) {
-      controller.dispose();
+    if (mounted) {
+      setState(() {
+        _pingResults[index] = latency;
+        _isPinging[index] = false;
+      });
+      _animControllers[index]!.stop();
+      _animControllers[index]!.reset();
     }
-    super.dispose();
   }
 
   @override
@@ -260,121 +222,88 @@ class _ProxiesTabState extends State<ProxiesTab> with TickerProviderStateMixin {
         backgroundColor: const Color(0xFF6C63FF),
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: widget.accounts.isEmpty 
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.no_accounts_outlined, size: 64, color: Colors.grey.withValues(alpha: 0.3)),
-                  const SizedBox(height: 16),
-                  const Text("No accounts saved", style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            )
+      body: widget.accounts.isEmpty
+          ? const Center(child: Text("No accounts saved", style: TextStyle(color: Colors.grey)))
           : ListView.builder(
               padding: const EdgeInsets.all(20),
               itemCount: widget.accounts.length,
               itemBuilder: (context, index) {
                 final acc = widget.accounts[index];
                 final isSelected = index == widget.activePingIndex;
-                final usage = acc['usage'] ?? 0;
-                
+                final res = _pingResults[index];
                 final isPinging = _isPinging[index] ?? false;
-                final pingResult = _pingResults[index];
-                
+
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: isSelected ? const BorderSide(color: Color(0xFF6C63FF), width: 2) : BorderSide.none,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                      leading: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFF6C63FF) : const Color(0xFF6C63FF).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(Icons.dns, color: isSelected ? Colors.white : const Color(0xFF6C63FF)),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(12),
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF6C63FF) : Colors.white10,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(acc['name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold)),
-                          if (pingResult != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: pingResult.contains("ms") 
-                                    ? (double.tryParse(pingResult.split(" ")[0]) ?? 999) < 150 ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2)
-                                    : Colors.red.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                pingResult, 
-                                style: TextStyle(
-                                  fontSize: 12, 
-                                  fontWeight: FontWeight.bold,
-                                  color: pingResult.contains("ms") 
-                                      ? (double.tryParse(pingResult.split(" ")[0]) ?? 999) < 150 ? Colors.green : Colors.orange
-                                      : Colors.red
-                                ),
-                              ),
-                            ),
-                        ],
+                      child: Icon(
+                        Icons.dns,
+                        color: isSelected ? Colors.white : Colors.white70,
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(acc['ip'] ?? "", style: const TextStyle(fontSize: 12)),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.black26,
-                                  borderRadius: BorderRadius.circular(4)
-                                ),
-                                child: Text(
-                                  "Used: ${_formatTotalBytes(usage)}", 
-                                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Ping Button
-                          IconButton(
-                            icon: RotationTransition(
-                              turns: _animControllers[index] ?? const AlwaysStoppedAnimation(0),
-                              child: Icon(
-                                Icons.flash_on, 
-                                color: isPinging ? Colors.yellow : Colors.grey,
-                                size: 20,
-                              ),
-                            ),
-                            onPressed: isPinging ? null : () => _showPingDialog(context, index),
-                          ),
-                          PopupMenuButton(
-                            itemBuilder: (ctx) => [
-                              const PopupMenuItem(value: 'delete', child: Text("Delete")),
-                            ],
-                            onSelected: (val) {
-                              if (val == 'delete') widget.onDelete(index);
-                            },
-                          ),
-                        ],
-                      ),
-                      onTap: () => widget.onActivate(index),
                     ),
+                    title: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          acc['name'] ?? "Unknown",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (res != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: res.contains("ms") ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              res,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: res.contains("ms") ? Colors.green : Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      acc['ip'] ?? "",
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: RotationTransition(
+                            turns: _animControllers[index] ?? const AlwaysStoppedAnimation(0),
+                            child: Icon(
+                              Icons.flash_on,
+                              color: isPinging ? Colors.yellow : Colors.grey,
+                              size: 20,
+                            ),
+                          ),
+                          onPressed: () => _showPingDialog(context, index),
+                        ),
+                        PopupMenuButton(
+                          itemBuilder: (ctx) => [
+                            const PopupMenuItem(value: 'del', child: Text("Delete")),
+                          ],
+                          onSelected: (v) => widget.onDelete(index),
+                        ),
+                      ],
+                    ),
+                    onTap: () => widget.onActivate(index),
                   ),
                 );
               },

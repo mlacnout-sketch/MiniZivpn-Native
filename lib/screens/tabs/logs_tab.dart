@@ -5,7 +5,11 @@ class LogsTab extends StatelessWidget {
   final List<String> logs;
   final ScrollController scrollController;
 
-  const LogsTab({super.key, required this.logs, required this.scrollController});
+  const LogsTab({
+    super.key,
+    required this.logs,
+    required this.scrollController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +20,10 @@ class LogsTab extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Live Logs", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text(
+                "Live Logs",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               Row(
                 children: [
                   IconButton(
@@ -24,10 +31,18 @@ class LogsTab extends StatelessWidget {
                     tooltip: "Copy All",
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: logs.join("\n")));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("All logs copied")));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("All logs copied")),
+                      );
                     },
                   ),
-                  IconButton(icon: const Icon(Icons.delete), onPressed: () => logs.clear()),
+                  IconButton(
+                    icon: const Icon(Icons.delete_sweep),
+                    tooltip: "Clear Logs",
+                    onPressed: () {
+                      logs.clear();
+                    },
+                  ),
                 ],
               ),
             ],
@@ -35,8 +50,8 @@ class LogsTab extends StatelessWidget {
         ),
         Expanded(
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-            padding: const EdgeInsets.all(8),
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF0F0F12),
               borderRadius: BorderRadius.circular(12),
@@ -47,7 +62,8 @@ class LogsTab extends StatelessWidget {
               itemCount: logs.length,
               itemBuilder: (context, index) {
                 final log = logs[index];
-                final isError = log.toLowerCase().contains("error") || log.toLowerCase().contains("fail");
+                final isError = log.toLowerCase().contains("error") ||
+                    log.toLowerCase().contains("fail");
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: SelectableText(
