@@ -15,22 +15,22 @@ import (
 
 // TODO: Port Restricted NAT support.
 func (t *Tunnel) handleUDPConn(uc adapter.UDPConn) {
+	id := uc.ID()
+
+	// DNS HIJACKING: Intercept DNS queries and handle them via TCP resolver
+	if id.LocalPort == 53 {
+		go t.handleDNS(uc)
+		return
+	}
+
 	defer uc.Close()
 
-	id := uc.ID()
 	metadata := &M.Metadata{
 		Network: M.UDP,
 		SrcIP:   parseTCPIPAddress(id.RemoteAddress),
 		SrcPort: id.RemotePort,
 		DstIP:   parseTCPIPAddress(id.LocalAddress),
 		DstPort: id.LocalPort,
-	}
-
-	// DNS HIJACKING: Force redirect all DNS traffic (Port 53) to Google DNS (8.8.8.8)
-	// This fixes issues where local ISP DNS servers are unreachable via VPN tunnel.
-	if metadata.DstPort == 53 {
-		log.Infof("[DNS] Hijacking DNS request to %s -> Redirecting to 8.8.8.8", metadata.DstIP)
-		metadata.DstIP = "8.8.8.8"
 	}
 
 	pc, err := t.Proxy().DialUDP(metadata)
