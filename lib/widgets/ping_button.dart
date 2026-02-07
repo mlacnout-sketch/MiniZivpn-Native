@@ -80,6 +80,14 @@ class _PingButtonState extends State<PingButton> with SingleTickerProviderStateM
       }
       return "HTTP ${response.statusCode}";
     } catch (e) {
+      // 1.5. Fallback: Gstatic Ping (Alternative Endpoint)
+      try {
+        final request = await client.getUrl(Uri.parse("http://www.gstatic.com/generate_204"));
+        final response = await request.close();
+        await response.drain();
+        if (response.statusCode == 204) return "Gstatic OK";
+      } catch (_) {}
+
       // 2. Fallback: TCP Handshake (Layer 4)
       try {
         final socket = await Socket.connect('1.1.1.1', 80, timeout: const Duration(seconds: 3));
@@ -107,6 +115,7 @@ class _PingButtonState extends State<PingButton> with SingleTickerProviderStateM
       if (ms < 300) return Colors.yellow;
     }
     if (res == "TCP OK") return Colors.cyanAccent;
+    if (res == "Gstatic OK") return Colors.lightGreenAccent;
     if (res == "HTTP OK") return Colors.lightBlueAccent;
     return Colors.redAccent;
   }
