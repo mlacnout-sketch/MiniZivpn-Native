@@ -2,7 +2,6 @@ package tunnel
 
 import (
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/miekg/dns"
