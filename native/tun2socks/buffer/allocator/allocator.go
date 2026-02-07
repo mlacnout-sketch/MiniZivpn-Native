@@ -10,7 +10,8 @@ import (
 // Allocator for incoming frames, optimized to prevent overwriting
 // after zeroing.
 type Allocator struct {
-	buffers []*pool.Pool[[]byte]
+	buffers    []*pool.Pool[*[]byte]
+	containers *pool.Pool[*[]byte]
 }
 
 // New initiates a []byte allocator for frames less than 65536 bytes,
@@ -18,11 +19,15 @@ type Allocator struct {
 // to be no more than 50%.
 func New() *Allocator {
 	alloc := &Allocator{}
-	alloc.buffers = make([]*pool.Pool[[]byte], 17) // 1B -> 64K
+	alloc.containers = pool.New(func() *[]byte {
+		return new([]byte)
+	})
+	alloc.buffers = make([]*pool.Pool[*[]byte], 17) // 1B -> 64K
 	for k := range alloc.buffers {
 		i := k
-		alloc.buffers[k] = pool.New(func() []byte {
-			return make([]byte, 1<<uint32(i))
+		alloc.buffers[k] = pool.New(func() *[]byte {
+			b := make([]byte, 1<<uint32(i))
+			return &b
 		})
 	}
 	return alloc
@@ -35,11 +40,16 @@ func (alloc *Allocator) Get(size int) []byte {
 	}
 
 	b := msb(size)
+	var ptr *[]byte
 	if size == 1<<b {
-		return alloc.buffers[b].Get()[:size]
+		ptr = alloc.buffers[b].Get()
+	} else {
+		ptr = alloc.buffers[b+1].Get()
 	}
 
-	return alloc.buffers[b+1].Get()[:size]
+	buf := *ptr
+	alloc.containers.Put(ptr)
+	return buf[:size]
 }
 
 // Put returns a []byte to pool for future use,
@@ -50,7 +60,9 @@ func (alloc *Allocator) Put(buf []byte) error {
 		return errors.New("allocator Put() incorrect buffer size")
 	}
 
-	alloc.buffers[b].Put(buf)
+	ptr := alloc.containers.Get()
+	*ptr = buf
+	alloc.buffers[b].Put(ptr)
 	return nil
 }
 
