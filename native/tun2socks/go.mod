@@ -1,6 +1,6 @@
 module github.com/xjasonlyu/tun2socks/v2
 
-go 1.22
+go 1.24.1
 
 require (
 	github.com/docker/go-units v0.5.0
@@ -29,9 +29,13 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/miekg/dns v1.1.72 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/tools v0.40.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )
