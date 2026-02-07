@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../widgets/ping_button.dart';
 
 class DashboardTab extends StatefulWidget {
   final String vpnState; // "disconnected", "connecting", "connected"
@@ -26,123 +25,7 @@ class DashboardTab extends StatefulWidget {
   State<DashboardTab> createState() => _DashboardTabState();
 }
 
-class _DashboardTabState extends State<DashboardTab> with SingleTickerProviderStateMixin {
-  String _pingResult = "";
-  bool _isPinging = false;
-  late AnimationController _pingAnimCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _pingAnimCtrl = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    );
-  }
-
-  @override
-  void dispose() {
-    _pingAnimCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _doPing() async {
-    if (_isPinging) return;
-
-    setState(() {
-      _isPinging = true;
-      _pingResult = "Pinging...";
-    });
-    _pingAnimCtrl.repeat();
-
-    String result = "Error";
-    try {
-      // Enforce 10s hard timeout for the entire operation
-      result = await _performPingLogic().timeout(const Duration(seconds: 10), onTimeout: () {
-        return "Timeout";
-      });
-    } catch (e) {
-      result = "Error";
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPinging = false;
-          _pingResult = result;
-        });
-        _pingAnimCtrl.stop();
-        _pingAnimCtrl.reset();
-      }
-    }
-  }
-
-  Future<String> _performPingLogic() async {
-    final prefs = await SharedPreferences.getInstance();
-    String target = (prefs.getString('ping_target') ?? "http://clients3.google.com/generate_204").trim();
-    
-    // JS Logic: Ensure URL is valid
-    if (target.isEmpty) target = "http://clients3.google.com/generate_204";
-    if (!target.startsWith("http")) {
-      target = "http://$target";
-    }
-
-    final stopwatch = Stopwatch()..start();
-    final client = HttpClient();
-    
-    // JS Logic equivalent: Timeout is critical
-    client.connectionTimeout = const Duration(milliseconds: 2000); // 2000ms timeout
-    client.badCertificateCallback = (cert, host, port) => true; // Robustness
-
-    try {
-      final request = await client.getUrl(Uri.parse(target));
-      
-      // Close request to send it
-      final response = await request.close();
-      
-      // Stop timer immediately after headers received
-      stopwatch.stop();
-      
-      // Critical: Drain response to prevent socket leaks (Dart specific)
-      await response.drain(); 
-
-      // JS Logic: status === 200 || status === 204
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        return "${stopwatch.elapsedMilliseconds} ms";
-      } else {
-        return "HTTP ${response.statusCode}";
-      }
-    } catch (e) {
-      // JS Logic: catch (error) { return false } -> We return specific error
-      return "Timeout";
-    } finally {
-      client.close();
-    }
-  }
-
-  Color _getPingColor(String result) {
-    if (result.contains("Error") || result.contains("Timeout") || result.contains("HTTP") || result.contains("Net")) {
-      return Colors.redAccent;
-    }
-    if (result == "TCP OK") return Colors.yellowAccent; // TCP OK means connected but maybe slow/no http
-    try {
-      final msString = result.split(' ')[0];
-      final ms = double.tryParse(msString);
-      if (ms != null) {
-        if (ms < 150) return Colors.greenAccent;
-        if (ms < 300) return Colors.orangeAccent;
-      }
-    } catch (_) {}
-    return Colors.redAccent;
-  }
-
-  String _formatTotalBytes(int bytes) {
-    if (bytes < 1024) return "$bytes B";
-    if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
-    if (bytes < 1024 * 1024 * 1024) {
-      return "${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB";
-    }
-    return "${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB";
-  }
-
+class _DashboardTabState extends State<DashboardTab> {
   @override
   Widget build(BuildContext context) {
     bool isConnected = widget.vpnState == "connected";
@@ -239,42 +122,10 @@ class _DashboardTabState extends State<DashboardTab> with SingleTickerProviderSt
                   ),
                 ),
                 if (isConnected)
-                  Positioned(
+                  const Positioned(
                     bottom: 20,
                     right: 20,
-                    child: Column(
-                      children: [
-                        FloatingActionButton.small(
-                          onPressed: _doPing,
-                          backgroundColor: const Color(0xFF272736),
-                          child: RotationTransition(
-                            turns: _pingAnimCtrl,
-                            child: Icon(
-                              Icons.flash_on,
-                              color: _isPinging ? Colors.yellow : const Color(0xFF6C63FF),
-                            ),
-                          ),
-                        ),
-                        if (_pingResult.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              _pingResult,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: _getPingColor(_pingResult),
-                              ),
-                            ),
-                          ),
-                        ]
-                      ],
-                    ),
+                    child: PingButton(),
                   ),
               ],
             ),
@@ -332,6 +183,15 @@ class _DashboardTabState extends State<DashboardTab> with SingleTickerProviderSt
         ],
       ),
     );
+  }
+
+  String _formatTotalBytes(int bytes) {
+    if (bytes < 1024) return "$bytes B";
+    if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
+    if (bytes < 1024 * 1024 * 1024) {
+      return "${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB";
+    }
+    return "${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB";
   }
 }
 
