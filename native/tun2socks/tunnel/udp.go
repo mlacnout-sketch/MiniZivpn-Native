@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xjasonlyu/tun2socks/v2/badvpn"
 	"github.com/xjasonlyu/tun2socks/v2/buffer"
 	"github.com/xjasonlyu/tun2socks/v2/core/adapter"
 	"github.com/xjasonlyu/tun2socks/v2/log"
@@ -33,6 +34,22 @@ func (t *Tunnel) handleUDPConn(uc adapter.UDPConn) {
 		DstPort: id.LocalPort,
 	}
 
+	// BadVPN/UDPGW Support
+	t.udpgwMu.Lock()
+	mgr := t.udpgwMgr
+	t.udpgwMu.Unlock()
+
+	if mgr != nil {
+		client, err := mgr.NewClient()
+		if err != nil {
+			log.Warnf("[UDPGW] Failed to create client: %v", err)
+			return
+		}
+		
+		t.handleBadVPN(uc, metadata, client)
+		return
+	}
+
 	pc, err := t.Proxy().DialUDP(metadata)
 	if err != nil {
 		log.Warnf("[UDP] dial %s: %v", metadata.DestinationAddress(), err)
@@ -49,7 +66,9 @@ func (t *Tunnel) handleUDPConn(uc adapter.UDPConn) {
 	} else {
 		remote = metadata.Addr()
 	}
-	pc = newSymmetricNATPacketConn(pc, metadata)
+	
+	// Use Restricted NAT (Address Restricted Cone) to allow packets from the same IP with different ports.
+	pc = newRestrictedNATPacketConn(pc, metadata)
 
 	log.Infof("[UDP] %s <-> %s", metadata.SourceAddress(), metadata.DestinationAddress())
 	pipePacket(uc, pc, remote, t.udpTimeout.Load())
@@ -78,7 +97,7 @@ func copyPacketData(dst, src net.PacketConn, to net.Addr, timeout time.Duration)
 
 	for {
 		src.SetReadDeadline(time.Now().Add(timeout))
-		n, _, err := src.ReadFrom(buf)
+		n, addr, err := src.ReadFrom(buf)
 		if ne, ok := err.(net.Error); ok && ne.Timeout() {
 			return nil /* ignore I/O timeout */
 		} else if err == io.EOF {
@@ -87,36 +106,89 @@ func copyPacketData(dst, src net.PacketConn, to net.Addr, timeout time.Duration)
 			return err
 		}
 
-		if _, err = dst.WriteTo(buf[:n], to); err != nil {
+		target := to
+		if target == nil {
+			target = addr
+		}
+
+		if _, err = dst.WriteTo(buf[:n], target); err != nil {
 			return err
 		}
 		dst.SetReadDeadline(time.Now().Add(timeout))
 	}
 }
 
-type symmetricNATPacketConn struct {
+type restrictedNATPacketConn struct {
 	net.PacketConn
-	src string
-	dst string
+	src    string
+	dstIP  string
 }
 
-func newSymmetricNATPacketConn(pc net.PacketConn, metadata *M.Metadata) *symmetricNATPacketConn {
-	return &symmetricNATPacketConn{
+func newRestrictedNATPacketConn(pc net.PacketConn, metadata *M.Metadata) *restrictedNATPacketConn {
+	return &restrictedNATPacketConn{
 		PacketConn: pc,
 		src:        metadata.SourceAddress(),
-		dst:        metadata.DestinationAddress(),
+		dstIP:      metadata.DstIP.String(),
 	}
 }
 
-func (pc *symmetricNATPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
+func (pc *restrictedNATPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	for {
 		n, from, err := pc.PacketConn.ReadFrom(p)
 
-		if from != nil && from.String() != pc.dst {
-			log.Warnf("[UDP] symmetric NAT %s->%s: drop packet from %s", pc.src, pc.dst, from)
-			continue
+		if from != nil {
+			var fromIP string
+			if udpAddr, ok := from.(*net.UDPAddr); ok {
+				fromIP = udpAddr.IP.String()
+			} else {
+				host, _, _ := net.SplitHostPort(from.String())
+				fromIP = host
+			}
+
+			if fromIP != pc.dstIP {
+				log.Warnf("[UDP] restricted NAT %s->%s: drop packet from %s", pc.src, pc.dstIP, from)
+				continue
+			}
 		}
 
 		return n, from, err
+	}
+}
+
+func (t *Tunnel) handleBadVPN(uc adapter.UDPConn, metadata *M.Metadata, client *badvpn.Client) {
+	defer client.Close()
+
+	log.Infof("[UDPGW] Tunneling %s <-> %s", metadata.SourceAddress(), metadata.DestinationAddress())
+
+	dstIP := net.IP(metadata.DstIP.AsSlice())
+	dstPort := metadata.DstPort
+
+	// Pipe: UC -> BadVPN
+	go func() {
+		buf := buffer.Get(buffer.MaxSegmentSize)
+		defer buffer.Put(buf)
+		
+		for {
+			uc.SetReadDeadline(time.Now().Add(t.udpTimeout.Load()))
+			n, _, err := uc.ReadFrom(buf)
+			if err != nil {
+				client.Close() // Force read loop to exit
+				return
+			}
+			
+			if err := client.WriteUDPGW(dstIP, dstPort, buf[:n]); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Pipe: BadVPN -> UC
+	for {
+		packet, err := client.ReadUDPGW()
+		if err != nil {
+			break
+		}
+		
+		_, _ = uc.WriteTo(packet.Data, nil)
 	}
 }
