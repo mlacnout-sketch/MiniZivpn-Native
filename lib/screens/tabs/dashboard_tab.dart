@@ -27,7 +27,43 @@ class DashboardTab extends StatefulWidget {
   State<DashboardTab> createState() => _DashboardTabState();
 }
 
-class _DashboardTabState extends State<DashboardTab> {
+class _DashboardTabState extends State<DashboardTab> with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _pulseAnimation = Tween<double>(begin: 0.0, end: 20.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    
+    if (widget.vpnState == "connecting") {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(DashboardTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.vpnState == "connecting" && !_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    } else if (widget.vpnState != "connecting" && _pulseController.isAnimating) {
+      _pulseController.stop();
+      _pulseController.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     bool isConnected = widget.vpnState == "connected";
@@ -56,22 +92,27 @@ class _DashboardTabState extends State<DashboardTab> {
                 Center(
                   child: GestureDetector(
                     onTap: isConnecting ? null : widget.onToggle,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 500),
-                      width: 220,
-                      height: 240,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: statusColor,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (isConnected ? AppColors.primary : Colors.black)
-                                .withValues(alpha: 0.4),
-                            blurRadius: 30,
-                            spreadRadius: 10,
-                          )
-                        ],
-                      ),
+                    child: AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, child) {
+                        return Container(
+                          width: 220,
+                          height: 240,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: statusColor,
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isConnecting ? Colors.orange : (isConnected ? AppColors.primary : Colors.black))
+                                    .withValues(alpha: isConnecting ? 0.6 : 0.4),
+                                blurRadius: isConnecting ? 20 + _pulseAnimation.value : 30,
+                                spreadRadius: isConnecting ? 5 + _pulseAnimation.value : 10,
+                              )
+                            ],
+                          ),
+                          child: child,
+                        );
+                      },
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
