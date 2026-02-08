@@ -10,7 +10,6 @@ class UpdateRepository {
     // Strategy: Try Proxies First (Tunnel), then Direct
     final strategies = [
       "PROXY 127.0.0.1:7778",  // HTTP Proxy (Go) - Best for Updates
-      "SOCKS5 127.0.0.1:7777", // SOCKS5 Fallback
       "DIRECT"                 // No Quota / WiFi
     ];
 
@@ -55,13 +54,13 @@ class UpdateRepository {
       final List releases = json.decode(jsonStr);
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
-      final currentBuildNumber = packageInfo.buildNumber;
+      // Build number ignored to prevent loop (Local 2 vs Remote CI RunNumber)
       
-      print("Current App: $currentVersion ($currentBuildNumber)");
+      print("Current App: $currentVersion");
       
       for (var release in releases) {
         final tagName = release['tag_name'].toString();
-        if (_isNewer(tagName, currentVersion, currentBuildNumber)) {
+        if (_isNewer(tagName, currentVersion)) {
           final assets = release['assets'] as List?;
           if (assets == null) continue;
 
@@ -83,7 +82,7 @@ class UpdateRepository {
       return null;
   }
 
-  bool _isNewer(String latestTag, String currentVersion, String currentBuildNumber) {
+  bool _isNewer(String latestTag, String currentVersion) {
     try {
       final RegExp regVer = RegExp(r'(\d+)\.(\d+)\.(\d+)');
       final match1 = regVer.firstMatch(latestTag);
@@ -108,19 +107,8 @@ class UpdateRepository {
         if (v1[i] < v2[i]) return false;
       }
       
-      if (latestTag.contains("-b")) {
-        final RegExp regBuild = RegExp(r'-b(\d+)');
-        final matchBuild = regBuild.firstMatch(latestTag);
-        
-        if (matchBuild != null) {
-          final remoteBuild = int.tryParse(matchBuild.group(1)!);
-          final localBuild = int.tryParse(currentBuildNumber) ?? 0;
-          
-          if (remoteBuild != null) {
-            return remoteBuild > localBuild;
-          }
-        }
-      }
+      // Build number comparison removed to strictly follow Semantic Versioning
+      // and avoid issues where CI Run Number (Remote) > Pubspec Build Number (Local)
       
       return false;
     } catch (e) {
