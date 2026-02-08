@@ -3,6 +3,7 @@ package tunnel
 import (
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -103,15 +104,15 @@ func copyPacketData(dst, src net.PacketConn, to net.Addr, timeout time.Duration)
 
 type restrictedNATPacketConn struct {
 	net.PacketConn
-	src    string
-	dstIP  string
+	src   string
+	dstIP netip.Addr
 }
 
 func newRestrictedNATPacketConn(pc net.PacketConn, metadata *M.Metadata) *restrictedNATPacketConn {
 	return &restrictedNATPacketConn{
 		PacketConn: pc,
 		src:        metadata.SourceAddress(),
-		dstIP:      metadata.DstIP.String(),
+		dstIP:      metadata.DstIP,
 	}
 }
 
@@ -120,16 +121,23 @@ func (pc *restrictedNATPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 		n, from, err := pc.PacketConn.ReadFrom(p)
 
 		if from != nil {
-			var fromIP string
+			var fromAddr netip.Addr
+
 			if udpAddr, ok := from.(*net.UDPAddr); ok {
-				fromIP = udpAddr.IP.String()
+				// Fast path: avoid string allocation
+				if addrPort := udpAddr.AddrPort(); addrPort.IsValid() {
+					fromAddr = addrPort.Addr()
+				}
 			} else {
-				host, _, _ := net.SplitHostPort(from.String())
-				fromIP = host
+				// Fallback path
+				if ap, err := netip.ParseAddrPort(from.String()); err == nil {
+					fromAddr = ap.Addr()
+				}
 			}
 
-			if fromIP != pc.dstIP {
-				log.Warnf("[UDP] restricted NAT %s->%s: drop packet from %s", pc.src, pc.dstIP, from)
+			if fromAddr.IsValid() && fromAddr != pc.dstIP {
+				// Log dropped packet (rate limiting recommended in production)
+				// log.Warnf("[UDP] restricted NAT %s->%s: drop packet from %s", pc.src, pc.dstIP, from)
 				continue
 			}
 		}
