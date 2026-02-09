@@ -2,7 +2,7 @@ name: ZIVPN xSock Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "xsock" ]
   workflow_dispatch:
 
 jobs:
@@ -47,13 +47,13 @@ jobs:
 
       - name: Decode Signing Keystore
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ ! -z "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.jks
             echo "Keystore decoded successfully."
           else
-            echo "Warning: KEYSTORE_BASE64 secret is missing. Build will fail signing."
+            echo "Warning: ANDROID_KEYSTORE_BASE64 secret is missing. Build will fail signing."
           fi
 
       - name: Build Release APK
