@@ -2,7 +2,7 @@ name: ZIVPN xSock Build
 
 on:
   push:
-    branches: [ "xsock" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
