@@ -38,7 +38,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := xsock
 
 # Define flags
-LOCAL_CFLAGS := -O2 -Wall -DANDROID -D_GNU_SOURCE -std=c99
+LOCAL_CFLAGS := -O2 -Wall -DANDROID -D_GNU_SOURCE -std=c99 -fcommon
 
 # Include paths
 LOCAL_C_INCLUDES := \
