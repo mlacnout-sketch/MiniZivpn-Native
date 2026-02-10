@@ -49,7 +49,6 @@ android {
 
     buildTypes {
         release {
-            // Use debug signing config to guarantee build success (bypassing keystore password issues)
             signingConfig signingConfigs.debug
             minifyEnabled true
             shrinkResources true
