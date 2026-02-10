@@ -54,9 +54,22 @@ LOCAL_C_INCLUDES := \
 # Note: Manually listing files is safer than wildcards in some NDK versions, 
 # but for brevity/maintenance we use wildcard here if supported, or list key files.
 # We exclude android.c if it conflicts or is not needed for the CLI executable.
-XSOCK_SRC_FILES_ALL := $(wildcard $(LOCAL_PATH)/xSocks/src/*.c)
-# Exclude Windows-specific getopt implementation and included-only files
-XSOCK_SRC_FILES := $(filter-out $(LOCAL_PATH)/xSocks/src/getopt.c $(LOCAL_PATH)/xSocks/src/udprelay.c, $(XSOCK_SRC_FILES_ALL))
+XSOCK_SRC_FILES := \
+    $(LOCAL_PATH)/xSocks/src/acl.c \
+    $(LOCAL_PATH)/xSocks/src/util.c \
+    $(LOCAL_PATH)/xSocks/src/logger.c \
+    $(LOCAL_PATH)/xSocks/src/common.c \
+    $(LOCAL_PATH)/xSocks/src/crypto.c \
+    $(LOCAL_PATH)/xSocks/src/daemon.c \
+    $(LOCAL_PATH)/xSocks/src/signal.c \
+    $(LOCAL_PATH)/xSocks/src/consumer.c \
+    $(LOCAL_PATH)/xSocks/src/cache.c \
+    $(LOCAL_PATH)/xSocks/src/packet.c \
+    $(LOCAL_PATH)/xSocks/src/xSocks_udprelay.c \
+    $(LOCAL_PATH)/xSocks/src/xSocks_client.c \
+    $(LOCAL_PATH)/xSocks/src/xSocks_remote.c \
+    $(LOCAL_PATH)/xSocks/src/xSocks.c \
+    $(LOCAL_PATH)/xSocks/src/android.c
 
 LIBIPSET_SRC_FILES := \
     $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/bdd-iterator.c \
