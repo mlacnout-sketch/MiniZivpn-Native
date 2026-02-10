@@ -55,8 +55,8 @@ LOCAL_C_INCLUDES := \
 # but for brevity/maintenance we use wildcard here if supported, or list key files.
 # We exclude android.c if it conflicts or is not needed for the CLI executable.
 XSOCK_SRC_FILES_ALL := $(wildcard $(LOCAL_PATH)/xSocks/src/*.c)
-# Exclude Windows-specific getopt implementation
-XSOCK_SRC_FILES := $(filter-out $(LOCAL_PATH)/xSocks/src/getopt.c, $(XSOCK_SRC_FILES_ALL))
+# Exclude Windows-specific getopt implementation and included-only files
+XSOCK_SRC_FILES := $(filter-out $(LOCAL_PATH)/xSocks/src/getopt.c $(LOCAL_PATH)/xSocks/src/udprelay.c, $(XSOCK_SRC_FILES_ALL))
 
 LIBIPSET_SRC_FILES := \
     $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/bdd-iterator.c \

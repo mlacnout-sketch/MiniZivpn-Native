@@ -1,8 +1,6 @@
 #ifndef _UDPRELAY_C
 #define _UDPRELAY_C
 
-#include "udprelay.h"
-
 static uv_mutex_t mutex;
 static struct cache *cache;
 
