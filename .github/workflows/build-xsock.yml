@@ -58,6 +58,14 @@ jobs:
 
       - name: Build Native Libraries (NDK)
         run: |
+          # Generate libsodium version.h manually
+          cd android/app/src/main/jni/xSocks/3rd/libsodium/src/libsodium/include/sodium
+          sed -e 's/@VERSION@/1.0.18/g' \
+              -e 's/@SODIUM_LIBRARY_VERSION_MAJOR@/25/g' \
+              -e 's/@SODIUM_LIBRARY_VERSION_MINOR@/1/g' \
+              < version.h.in > version.h
+          cd -
+
           cd android/app/src/main
           $ANDROID_NDK_HOME/ndk-build NDK_PROJECT_PATH=. NDK_APPLICATION_MK=jni/Application.mk
           
