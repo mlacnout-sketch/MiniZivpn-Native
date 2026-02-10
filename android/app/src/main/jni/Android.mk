@@ -47,7 +47,8 @@ LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/xSocks/3rd/libsodium/src/libsodium/include \
     $(LOCAL_PATH)/xSocks/3rd/c-ares/include \
     $(LOCAL_PATH)/xSocks/3rd/libipset/include \
-    $(LOCAL_PATH)/xSocks/3rd/libcork/include
+    $(LOCAL_PATH)/xSocks/3rd/libcork/include \
+    $(LOCAL_PATH)/libancillary
 
 # Source files
 # Note: Manually listing files is safer than wildcards in some NDK versions, 
