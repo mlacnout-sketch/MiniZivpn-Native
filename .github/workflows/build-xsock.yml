@@ -56,6 +56,12 @@ jobs:
             echo "Warning: ANDROID_KEYSTORE_BASE64 secret is missing. Build will fail signing."
           fi
 
+      - name: Build Native Libraries (NDK)
+        run: |
+          cd android/app/src/main
+          $ANDROID_NDK_HOME/ndk-build NDK_PROJECT_PATH=. NDK_APPLICATION_MK=jni/Application.mk
+          ls -R libs/
+
       - name: Build Release APK
         env:
           KEYSTORE_PATH: release.jks
