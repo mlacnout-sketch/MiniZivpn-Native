@@ -45,18 +45,55 @@ LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/xSocks/src \
     $(LOCAL_PATH)/xSocks/3rd/libuv/include \
     $(LOCAL_PATH)/xSocks/3rd/libsodium/src/libsodium/include \
-    $(LOCAL_PATH)/xSocks/3rd/c-ares/include
+    $(LOCAL_PATH)/xSocks/3rd/c-ares/include \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/include \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/include
 
 # Source files
 # Note: Manually listing files is safer than wildcards in some NDK versions, 
 # but for brevity/maintenance we use wildcard here if supported, or list key files.
 # We exclude android.c if it conflicts or is not needed for the CLI executable.
 XSOCK_SRC_FILES := $(wildcard $(LOCAL_PATH)/xSocks/src/*.c)
-LOCAL_SRC_FILES := $(XSOCK_SRC_FILES:$(LOCAL_PATH)/%=%)
+LIBIPSET_SRC_FILES := \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/bdd-iterator.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/read.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/assignments.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/write.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/basics.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/reachable.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/bdd/expanded.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/general.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/map/inspection.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/map/storage.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/map/allocation.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/map/ipv6_map.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/map/ipv4_map.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/set/ipv4_set.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/set/inspection.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/set/iterator.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/set/storage.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/set/ipv6_set.c \
+    $(LOCAL_PATH)/xSocks/3rd/libipset/src/set/allocation.c
+
+LIBCORK_SRC_FILES := \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/core/allocator.c \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/core/error.c \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/core/ip-address.c \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/ds/array.c \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/ds/hash-table.c \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/ds/buffer.c \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/ds/dllist.c \
+    $(LOCAL_PATH)/xSocks/3rd/libcork/src/posix/process.c
+
+LOCAL_SRC_FILES := \
+    $(XSOCK_SRC_FILES:$(LOCAL_PATH)/%=%) \
+    $(LIBIPSET_SRC_FILES:$(LOCAL_PATH)/%=%) \
+    $(LIBCORK_SRC_FILES:$(LOCAL_PATH)/%=%)
 
 # Link against prebuilt libs (libuz = libuv variant?, libload)
 # and system libs
 LOCAL_SHARED_LIBRARIES := libuz libload
+LOCAL_STATIC_LIBRARIES := libancillary
 LOCAL_LDLIBS := -llog -ldl
 
 include $(BUILD_EXECUTABLE)
