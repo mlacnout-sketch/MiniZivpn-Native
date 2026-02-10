@@ -17,6 +17,8 @@ import java.net.InetAddress
 import java.util.LinkedList
 import androidx.annotation.Keep
 import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 import org.json.JSONObject
 
 import java.io.BufferedReader
@@ -25,8 +27,8 @@ import java.io.InputStreamReader
 import android.os.PowerManager
 
 /**
- * ZIVPN TunService
- * Handles the VpnService interface and integrates with tun2socks via JNI.
+ * ZIVPN TunService (Native C Version)
+ * Handles the VpnService interface and integrates with C-based tun2socks via ProcessBuilder.
  */
 @Keep
 class ZivpnService : VpnService() {
@@ -72,6 +74,31 @@ class ZivpnService : VpnService() {
                 }
             } catch (e: Exception) {}
         }.start()
+    }
+
+    /**
+     * Copies a native library to internal storage and makes it executable.
+     * This is required for Android 10+ (W^X violation fix).
+     */
+    private fun installBinary(libName: String, targetName: String): String? {
+        try {
+            val libFile = File(applicationInfo.nativeLibraryDir, libName)
+            if (!libFile.exists()) {
+                logToApp("Binary not found in libs: $libName")
+                return null
+            }
+
+            val targetFile = File(filesDir, targetName)
+            // Always copy to ensure we have the latest version/clean state
+            libFile.copyTo(targetFile, overwrite = true)
+            
+            // Make executable
+            targetFile.setExecutable(true, true)
+            return targetFile.absolutePath
+        } catch (e: Exception) {
+            logToApp("Failed to install binary $libName: ${e.message}")
+            return null
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -128,7 +155,7 @@ class ZivpnService : VpnService() {
     private fun connect() {
         if (vpnInterface != null) return
 
-        Log.i("ZIVPN-Tun", "Initializing ZIVPN (tun2socks engine)...")
+        Log.i("ZIVPN-Tun", "Initializing ZIVPN (C-Native engine)...")
         
         val prefs = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
         
@@ -171,43 +198,23 @@ class ZivpnService : VpnService() {
         builder.setConfigureIntent(pendingIntent)
         builder.setMtu(mtu)
         
-        // GLOBAL ROUTING: Catch EVERYTHING
+        // GLOBAL ROUTING
         try {
             builder.addRoute("0.0.0.0", 0)
-            // Handle Fake-IP range (198.18.0.0/15) to prevent "host unreachable" errors
-            builder.addRoute("198.18.0.0", 15)
+            builder.addRoute("198.18.0.0", 15) // Fake-IP range
         } catch (e: Exception) {
-            Log.e("ZIVPN-Tun", "Failed to add global route, falling back to subnets")
-            // Fallback to stable subnets if 0.0.0.0/0 is rejected by system
-            val subnets = listOf(
-                "0.0.0.0" to 5, "8.0.0.0" to 7, "11.0.0.0" to 8, "12.0.0.0" to 6,
-                "16.0.0.0" to 4, "32.0.0.0" to 3, "64.0.0.0" to 2, "128.0.0.0" to 3,
-                "160.0.0.0" to 5, "168.0.0.0" to 6, "176.0.0.0" to 4, "192.0.0.0" to 9,
-                "192.128.0.0" to 11, "192.160.0.0" to 13, "192.169.0.0" to 16,
-                "192.170.0.0" to 15, "192.172.0.0" to 14, "193.0.0.0" to 8,
-                "194.0.0.0" to 7, "196.0.0.0" to 6, "200.0.0.0" to 3
-            )
-            for ((addr, mask) in subnets) {
-                try { builder.addRoute(addr, mask) } catch (ex: Exception) {}
-            }
+            Log.e("ZIVPN-Tun", "Failed to add global route, falling back")
+             // Fallback subnets if needed...
+             builder.addRoute("0.0.0.0", 1)
+             builder.addRoute("128.0.0.0", 1)
         }
         
-        // Intercept common DNS IPs to prevent leaks
-        val dnsToHijack = listOf(
-            "1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", 
-            "149.112.112.112", "208.67.222.222", "208.67.220.220",
-            "112.215.198.248", "112.215.198.249" // Common ISP DNS (XL/Tsel)
-        )
-        for (dns in dnsToHijack) {
-            try { builder.addRoute(dns, 32) } catch (e: Exception) {}
-        }
-
-        try {
-            builder.addDisallowedApplication(packageName)
-        } catch (e: Exception) {}
-
+        // DNS
         builder.addDnsServer("1.1.1.1")
         builder.addDnsServer("8.8.8.8")
+        
+        // Local IP for Tun interface (Must match what we tell tun2socks)
+        val tunIp = "26.26.26.2"
         builder.addAddress("26.26.26.1", 24)
 
         try {
@@ -216,40 +223,50 @@ class ZivpnService : VpnService() {
 
             Log.i("ZIVPN-Tun", "VPN Interface established. FD: $fd")
 
-            // 3. Start tun2socks (C Engine) via Process
+            // 3. Start tun2socks (C Native Version)
             Thread {
                 try {
-                    val libDir = applicationInfo.nativeLibraryDir
-                    val tun2socks = File(libDir, "libtun2socks.so").absolutePath
+                    // Install binaries to safe location
+                    val tun2socksBin = installBinary("libtun2socks.so", "tun2socks") ?: throw Exception("tun2socks binary missing")
                     
+                    // C-badvpn tun2socks arguments
+                    // Note: Arguments depend on your specific badvpn version. 
+                    // Assuming standard badvpn-tun2socks style:
                     val tun2socksArgs = arrayListOf(
-                        tun2socks,
-                        "--netif-ipaddr", "26.26.26.2",
+                        tun2socksBin,
+                        "--netif-ipaddr", tunIp,
                         "--netif-netmask", "255.255.255.0",
                         "--socks-server-addr", "127.0.0.1:7777",
                         "--tunfd", fd.toString(),
                         "--tunmtu", mtu.toString(),
-                        "--loglevel", "3",
+                        "--loglevel", "3", // 0-5
                         "--enable-udprelay"
                     )
 
-                    logToApp("Starting Tun2Socks: $tun2socksArgs")
+                    logToApp("Starting Tun2Socks Native: $tun2socksArgs")
 
                     val pb = ProcessBuilder(tun2socksArgs)
-                    val env = pb.environment()
-                    env["LD_LIBRARY_PATH"] = libDir
+                    pb.directory(filesDir)
+                    
+                    // Native C often needs to know where dynamic libs are
+                    val libDir = applicationInfo.nativeLibraryDir
+                    pb.environment()["LD_LIBRARY_PATH"] = libDir
+                    
                     pb.redirectErrorStream(true)
                     
                     val process = pb.start()
                     processes.add(process)
-                    captureProcessLog(process, "tun2socks")
+                    captureProcessLog(process, "tun2socks-c")
 
-                    // Send FD to tun2socks
+                    // Send FD to tun2socks if it waits for it via ancillary data
+                    // NOTE: badvpn-tun2socks usually takes --tunfd and uses it directly if compiled with Android support
+                    // But if it expects FD passing over socket:
                     Thread.sleep(1000)
                     if (NativeSystem.sendfd(fd) == 0) {
-                        logToApp("Tun2Socks FD sent successfully.")
+                        logToApp("Tun2Socks FD sent successfully (via ancillary).")
                     } else {
-                        logToApp("Failed to send FD to Tun2Socks.")
+                        // Not necessarily an error if --tunfd works directly
+                        logToApp("FD sending via ancillary skipped or failed (using --tunfd argument).")
                     }
 
                 } catch (e: Exception) {
@@ -266,9 +283,10 @@ class ZivpnService : VpnService() {
     }
 
     private fun startCores(ip: String, range: String, pass: String, obfs: String, multiplier: Double, coreCount: Int, logLevel: String) {
+        // Install binaries first
+        val libUzBin = installBinary("libuz.so", "libuz") ?: throw Exception("libuz missing")
+        val libLoadBin = installBinary("libload.so", "libload") ?: throw Exception("libload missing")
         val libDir = applicationInfo.nativeLibraryDir
-        val libUz = File(libDir, "libuz.so").absolutePath
-        val libLoad = File(libDir, "libload.so").absolutePath
         
         val baseConn = 131072
         val baseWin = 327680
@@ -278,7 +296,6 @@ class ZivpnService : VpnService() {
         val ports = (0 until coreCount).map { 20080 + it }
         val tunnelTargets = mutableListOf<String>()
 
-        // Map log level for Hysteria
         val hyLogLevel = when(logLevel) {
             "silent" -> "disable"
             "error" -> "error"
@@ -301,7 +318,7 @@ class ZivpnService : VpnService() {
             hyConfig.put("recvwindowconn", dynamicConn)
             hyConfig.put("recvwindow", dynamicWin)
             
-            val hyCmd = arrayListOf(libUz, "-s", obfs, "--config", hyConfig.toString())
+            val hyCmd = arrayListOf(libUzBin, "-s", obfs, "--config", hyConfig.toString())
             val hyPb = ProcessBuilder(hyCmd)
             hyPb.directory(filesDir)
             hyPb.environment()["LD_LIBRARY_PATH"] = libDir
@@ -316,7 +333,7 @@ class ZivpnService : VpnService() {
         logToApp("Waiting for cores to warm up...")
         Thread.sleep(1500)
 
-        val lbCmd = mutableListOf(libLoad, "-lport", "7777", "-tunnel")
+        val lbCmd = mutableListOf(libLoadBin, "-lport", "7777", "-tunnel")
         lbCmd.addAll(tunnelTargets)
         
         val lbPb = ProcessBuilder(lbCmd)
@@ -339,14 +356,6 @@ class ZivpnService : VpnService() {
         }
         wakeLock = null
         
-        /*
-        try {
-            mobile.Mobile.stop()
-        } catch (e: Exception) {
-            Log.e("ZIVPN-Tun", "Error stopping Mobile engine: ${e.message}")
-        }
-        */
-
         processes.forEach { 
             try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -358,10 +367,11 @@ class ZivpnService : VpnService() {
         }
         processes.clear()
 
-        // Optimized: Run cleanup in background to prevent ANR
+        // Clean up processes by name
         Thread {
             try {
-                val cleanupCmd = arrayOf("sh", "-c", "pkill -9 libuz; pkill -9 libload; pkill -9 libuz.so; pkill -9 libload.so")
+                // killall/pkill might not work on all androids, but we try
+                val cleanupCmd = arrayOf("sh", "-c", "pkill -9 libuz; pkill -9 libload; pkill -9 tun2socks")
                 Runtime.getRuntime().exec(cleanupCmd).waitFor()
             } catch (e: Exception) {}
         }.start()
