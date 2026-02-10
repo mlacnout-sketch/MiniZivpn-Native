@@ -1,0 +1,98 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006-2014 OpenWrt.org
+
+START=72
+STOP=30
+FIREWALL_RELOAD=0
+
+SERVER=IP:PORT
+PASSWORD=PASSWORD
+
+LISTEN_PORT=1070
+IP_ROUTE_TABLE_NUMBER=100
+FWMARK="0x01/0x01"
+SETNAME=wall
+CHAIN=XSOCKS
+DNS=8.8.8.8
+BLACK_LIST=/etc/black_list
+
+
+start() {
+    tproxy_start
+    acl add
+    mkdir -p /var/run/xSocks
+    xSocks -s $SERVER -k $PASSWORD
+    xTproxy -s $SERVER -k $PASSWORD
+    xForwarder -l 0.0.0.0:5533 -d $DNS:53 -s $SERVER -k $PASSWORD
+}
+
+stop() {
+    tproxy_stop
+    acl del
+    xSocks --signal stop
+    xTproxy --signal stop
+    xForwarder --signal stop
+}
+
+shutdown() {
+    tproxy_stop
+    acl del
+    xSocks --signal quit
+    xTproxy --signal quit
+    xForwarder --signal quit
+}
+
+tproxy_start() {
+    iptables -t nat -D PREROUTING -p tcp -j $CHAIN > /dev/null 2>&1
+    iptables -t nat -F $CHAIN > /dev/null 2>&1
+    iptables -t nat -X $CHAIN > /dev/null 2>&1
+
+    iptables -t mangle -D PREROUTING -j $CHAIN > /dev/null 2>&1
+    iptables -t mangle -F $CHAIN > /dev/null 2>&1
+    iptables -t mangle -X $CHAIN > /dev/null 2>&1
+
+    iptables -t nat -N $CHAIN
+    iptables -t mangle -N $CHAIN
+
+    ipset -N $SETNAME iphash -exist
+
+    ### TCP
+    iptables -t nat -A $CHAIN -p tcp -m set --match-set $SETNAME dst -j REDIRECT --to-port $LISTEN_PORT
+    iptables -t nat -A PREROUTING -p tcp -j $CHAIN
+
+    ### UDP
+    ip rule del fwmark $FWMARK table $IP_ROUTE_TABLE_NUMBER > /dev/null 2>&1
+    ip route del local 0.0.0.0/0 dev lo table $IP_ROUTE_TABLE_NUMBER > /dev/null 2>&1
+
+    ip rule add fwmark $FWMARK table $IP_ROUTE_TABLE_NUMBER
+    ip route add local 0.0.0.0/0 dev lo table $IP_ROUTE_TABLE_NUMBER
+
+    iptables -t mangle -A $CHAIN -p udp -m set --match-set $SETNAME dst -j TPROXY \
+        --on-port $LISTEN_PORT --tproxy-mark $FWMARK
+    iptables -t mangle -A PREROUTING -j $CHAIN
+}
+
+tproxy_stop() {
+    iptables -t nat -D PREROUTING -p tcp -j $CHAIN > /dev/null 2>&1
+    iptables -t nat -F $CHAIN > /dev/null 2>&1
+    iptables -t nat -X $CHAIN > /dev/null 2>&1
+
+    iptables -t mangle -D PREROUTING -j $CHAIN > /dev/null 2>&1
+    iptables -t mangle -F $CHAIN > /dev/null 2>&1
+    iptables -t mangle -X $CHAIN > /dev/null 2>&1
+
+    ip rule del fwmark $FWMARK table $IP_ROUTE_TABLE_NUMBER > /dev/null 2>&1
+    ip route del local 0.0.0.0/0 dev lo table $IP_ROUTE_TABLE_NUMBER > /dev/null 2>&1
+}
+
+acl() {
+    if [ ! -f $BLACK_LIST ]; then
+        exit 1
+    fi
+
+    while read line;do
+        [ -z "$line" ] && continue
+        case "$line" in \#*) continue ;; esac
+        ipset $1 $SETNAME $line --exist
+    done < $BLACK_LIST
+}
