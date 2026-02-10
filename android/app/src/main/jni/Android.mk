@@ -111,7 +111,7 @@ LOCAL_SRC_FILES := \
 # and system libs
 LOCAL_SHARED_LIBRARIES := libuz libload
 LOCAL_STATIC_LIBRARIES := libancillary
-LOCAL_LDLIBS := -llog -ldl
+LOCAL_LDLIBS := -llog -ldl -Wl,--unresolved-symbols=ignore-all -Wl,--allow-shlib-undefined
 
 include $(BUILD_EXECUTABLE)
 
