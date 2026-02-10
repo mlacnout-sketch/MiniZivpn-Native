@@ -60,6 +60,13 @@ jobs:
         run: |
           cd android/app/src/main
           $ANDROID_NDK_HOME/ndk-build NDK_PROJECT_PATH=. NDK_APPLICATION_MK=jni/Application.mk
+          
+          # Rename executables to lib*.so for APK packaging
+          mv libs/arm64-v8a/xsock libs/arm64-v8a/libxsock.so
+          mv libs/arm64-v8a/tun2socks libs/arm64-v8a/libtun2socks.so
+          mv libs/arm64-v8a/pdnsd libs/arm64-v8a/libpdnsd.so
+          
+          echo "Native libs content:"
           ls -R libs/
 
       - name: Build Release APK
