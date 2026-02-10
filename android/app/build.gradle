@@ -6,26 +6,29 @@ plugins {
 
 android {
     namespace "com.minizivpn.app"
-    compileSdk 36
+    compileSdk 35
     ndkVersion "27.0.12077973"
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '17'
     }
 
     sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
+        main {
+            java.srcDirs += 'src/main/kotlin'
+            jniLibs.srcDirs = ['src/main/jni/libs']
+        }
     }
 
     defaultConfig {
         applicationId "com.minizivpn.app"
         minSdk 24
-        targetSdk 36
+        targetSdk 35
         versionCode flutter.versionCode
         versionName flutter.versionName
     }
@@ -49,7 +52,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

@@ -64,3 +64,5 @@ devtools_options.yaml
 GEMINI_CHECKPOINT.md
 android/local.properties
 **/GeneratedPluginRegistrant.java
+
+*.jks

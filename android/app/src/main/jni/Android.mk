@@ -31,11 +31,11 @@ LOCAL_SRC_FILES := libancillary/fd_recv.c libancillary/fd_send.c
 include $(BUILD_STATIC_LIBRARY)
 
 #########################################################################
-# 3. EXECUTABLE: xsock
+# 3. EXECUTABLE: xsock (packaged as libxsock.so)
 #########################################################################
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := xsock
+LOCAL_MODULE := libxsock.so
 
 # Define flags
 LOCAL_CFLAGS := -O2 -Wall -DANDROID -D_GNU_SOURCE -std=c99
@@ -62,11 +62,11 @@ LOCAL_LDLIBS := -llog -ldl
 include $(BUILD_EXECUTABLE)
 
 #########################################################################
-# 4. EXECUTABLE: tun2socks
+# 4. EXECUTABLE: tun2socks (packaged as libtun2socks.so)
 #########################################################################
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := tun2socks
+LOCAL_MODULE := libtun2socks.so
 LOCAL_CFLAGS := -std=gnu99 -DBADVPN_THREADWORK_USE_PTHREAD -DBADVPN_LINUX -DBADVPN_BREACTOR_BADVPN -D_GNU_SOURCE -DBADVPN_USE_SELFPIPE -DBADVPN_USE_EPOLL -DBADVPN_LITTLE_ENDIAN -DBADVPN_THREAD_SAFE -DNDEBUG -DANDROID
 LOCAL_STATIC_LIBRARIES := libancillary
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/libancillary $(LOCAL_PATH)/badvpn/lwip/src/include/ipv4 $(LOCAL_PATH)/badvpn/lwip/src/include/ipv6 $(LOCAL_PATH)/badvpn/lwip/src/include $(LOCAL_PATH)/badvpn/lwip/custom $(LOCAL_PATH)/badvpn/
@@ -138,11 +138,11 @@ LOCAL_SRC_FILES := \
 include $(BUILD_EXECUTABLE)
 
 #########################################################################
-# 5. EXECUTABLE: pdnsd
+# 5. EXECUTABLE: pdnsd (packaged as libpdnsd.so)
 #########################################################################
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := pdnsd
+LOCAL_MODULE := libpdnsd.so
 LOCAL_CFLAGS := -Wall -O2 -I$(LOCAL_PATH)/pdnsd
 # Menggunakan wildcard untuk source files pdnsd
 PDNSD_SOURCES := $(wildcard $(LOCAL_PATH)/pdnsd/src/*.c)
