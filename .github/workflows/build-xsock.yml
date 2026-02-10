@@ -66,6 +66,11 @@ jobs:
               < version.h.in > version.h
           cd -
 
+          # Generate c-ares ares_build.h manually
+          cd android/app/src/main/jni/xSocks/3rd/c-ares
+          cp ares_build.h.dist ares_build.h
+          cd -
+
           cd android/app/src/main
           $ANDROID_NDK_HOME/ndk-build NDK_PROJECT_PATH=. NDK_APPLICATION_MK=jni/Application.mk
           
